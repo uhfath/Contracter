@@ -166,7 +166,8 @@ namespace Contracter
 								}
 							}
 
-							worker.ReportProgress((int)((decimal)(i + 1) / (decimal)(contractsRows - ContractsStartRow) * 100.0M));
+							var progress = (int)((decimal)(i + 1) / (decimal)(contractsRows - ContractsStartRow) * 100.0M);
+							worker.ReportProgress(Math.Min(progress, 100));
 						}
 					}
 				}
