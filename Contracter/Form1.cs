@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -21,9 +22,16 @@ namespace Contracter
 		private const string ContractsStartRowConfigName = "contracts_start_row";
 		private const string ContractsCodeColumnConfigName = "contracts_code_column";
 		private const string ContractsNameColumnConfigName = "contracts_name_column";
+		private const string StartPeriodColumnConfigName = "start_period_column";
+		private const string EndPeriodColumnConfigName = "end_period_column";
+		private const string PeriodFormatConfigName = "period_format";
 		private const string TemplateFileNameConfigName = "template_file_name";
 		private const string TemplateWorksheetNameConfigName = "template_worksheet_name";
-		private const string TemplateCellAddressConfigName = "template_cell_address";
+		private const string TemplateAddressCellConfigName = "template_address_cell";
+		private const string TemplateDataRowStartConfigName = "template_data_row_start";
+		private const string TemplateDataColStartConfigName = "template_data_col_start";
+		private const string TemplateDataColEndConfigName = "template_data_col_end";
+		private const string TemplateDataPeriodColumnConfigName = "template_data_period_column";
 		private const string DoubleFileSuffixConfigName = "double_file_suffix";
 
 		private static readonly string InvalidPattern = $"[{Regex.Escape(new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars()))}]";
@@ -32,9 +40,16 @@ namespace Contracter
 		private static int ContractsStartRow => int.Parse(ConfigurationManager.AppSettings[ContractsStartRowConfigName]);
 		private static int ContractsCodeColumn => int.Parse(ConfigurationManager.AppSettings[ContractsCodeColumnConfigName]);
 		private static int ContractsNameColumn => int.Parse(ConfigurationManager.AppSettings[ContractsNameColumnConfigName]);
+		private static int StartPeriodColumn => int.Parse(ConfigurationManager.AppSettings[StartPeriodColumnConfigName]);
+		private static int EndPeriodColumn => int.Parse(ConfigurationManager.AppSettings[EndPeriodColumnConfigName]);
+		private static string PeriodFormat => ConfigurationManager.AppSettings[PeriodFormatConfigName];
 		private static string TemplateFileName => ConfigurationManager.AppSettings[TemplateFileNameConfigName];
 		private static string TemplateWorksheetName => ConfigurationManager.AppSettings[TemplateWorksheetNameConfigName];
-		private static string TemplateCellAddress => ConfigurationManager.AppSettings[TemplateCellAddressConfigName];
+		private static string TemplateCellAddress => ConfigurationManager.AppSettings[TemplateAddressCellConfigName];
+		private static int TemplateDataRowStart => int.Parse(ConfigurationManager.AppSettings[TemplateDataRowStartConfigName]);
+		private static int TemplateDataColStart => int.Parse(ConfigurationManager.AppSettings[TemplateDataColStartConfigName]);
+		private static int TemplateDataColEnd => int.Parse(ConfigurationManager.AppSettings[TemplateDataColEndConfigName]);
+		private static int TemplateDataPeriodColumn => int.Parse(ConfigurationManager.AppSettings[TemplateDataPeriodColumnConfigName]);
 		private static string DoubleFileSuffix => ConfigurationManager.AppSettings[DoubleFileSuffixConfigName];
 
 		private string sourceFile;
@@ -142,12 +157,13 @@ namespace Contracter
 						{
 							var contractCode = contractsWorksheet.Cells[i, ContractsCodeColumn].Text;
 							var contractName = contractsWorksheet.Cells[i, ContractsNameColumn].Text;
+							var startPeriod = DateTime.ParseExact(contractsWorksheet.Cells[i, StartPeriodColumn].Text, PeriodFormat, CultureInfo.InvariantCulture);
+							var endPeriod = DateTime.ParseExact(contractsWorksheet.Cells[i, EndPeriodColumn].Text, PeriodFormat, CultureInfo.InvariantCulture);
 
 							var outputFolder = EnsureUniqueDirectoryName(Path.Combine(destinationDirectory, StripInvalidPathChars(contractCode)));
 							Directory.CreateDirectory(outputFolder);
 
 							var outputFile = Path.Combine(outputFolder, TemplateFileName);
-
 							using (var templateStream = File.OpenRead(TemplateFileName))
 							{
 								using (var templatePackage = new ExcelPackage(templateStream))
@@ -156,8 +172,25 @@ namespace Contracter
 
 									var templateText = templateWorksheet.Cells[TemplateCellAddress].Text;
 									templateText = string.Format(templateText, contractName, contractCode);
-
 									templateWorksheet.Cells[TemplateCellAddress].Value = templateText;
+
+									var templateRowIndex = 0;
+									for (var period = startPeriod; period <= endPeriod; period = period.AddMonths(1))
+									{
+										var row = TemplateDataRowStart + templateRowIndex;
+
+										if (templateRowIndex > 0)
+										{
+											templateWorksheet.InsertRow(row, 1);
+											templateWorksheet.Cells[TemplateDataRowStart, TemplateDataColStart, TemplateDataRowStart, TemplateDataColEnd].Copy(templateWorksheet.Cells[row, TemplateDataColStart, row, TemplateDataColEnd]);
+											templateWorksheet.Rows[row].Height = templateWorksheet.Rows[TemplateDataRowStart].Height;
+										}
+
+										templateWorksheet.Cells[row, TemplateDataColStart].Value = $"{templateRowIndex + 1}.";
+										templateWorksheet.Cells[row, TemplateDataPeriodColumn].Value = period;
+
+										++templateRowIndex;
+									}
 
 									using (var outputStream = File.Create(outputFile))
 									{
