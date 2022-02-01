@@ -160,7 +160,7 @@ namespace Contracter
 							var startPeriod = DateTime.ParseExact(contractsWorksheet.Cells[i, StartPeriodColumn].Text, PeriodFormat, CultureInfo.InvariantCulture);
 							var endPeriod = DateTime.ParseExact(contractsWorksheet.Cells[i, EndPeriodColumn].Text, PeriodFormat, CultureInfo.InvariantCulture);
 
-							var outputFolder = EnsureUniqueDirectoryName(Path.Combine(destinationDirectory, StripInvalidPathChars(contractCode)));
+							var outputFolder = EnsureUniqueDirectoryName(Path.Combine(destinationDirectory, StripInvalidPathChars(contractCode + "_" + contractName)));
 							Directory.CreateDirectory(outputFolder);
 
 							var outputFile = Path.Combine(outputFolder, TemplateFileName);
